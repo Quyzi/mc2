@@ -1,5 +1,7 @@
 pub mod backend;
-pub mod bucket;
-pub mod ident;
-pub mod label;
-pub mod transaction;
+pub mod identity;
+
+pub(self) mod prelude {
+    pub use super::backend::*;
+    pub use super::identity::*;
+}
