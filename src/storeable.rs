@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 pub trait StoreableItem<'i>: Serialize + Deserialize<'i> + Clone {
+    type Error;
     type Output: Serialize + Deserialize<'i> + Clone;
-    type Error: std::error::Error;
     type Serializer: serde::Serializer;
 
     fn to_storeable(&self) -> Result<Self::Output, Self::Error>;

@@ -1,16 +1,19 @@
-use crate::{backend::Backend, ident::Ident, storeable::StoreableItem};
+use crate::prelude::*;
 
 pub trait Bucket<'b> {
-    type Error: std::error::Error;
+    type Error;
     type ID: Ident<'b>;
+    type Backend: Backend<'b>;
+    type Transaction: Transaction<'b>;
 
-    fn open(be: &impl Backend, name: &str) -> Result<Self, Self::Error>
-    where
-        Self: Sized;
     fn close(self) -> Result<u32, Self::Error>;
+    fn parent_backend(&self) -> Result<Self::Backend, Self::Error>;
 
     fn list(&self, prefix: Option<Self::ID>) -> Result<Vec<Self::ID>, Self::Error>;
-    fn get(&self, id: Self::ID) -> Result<Option<impl StoreableItem>, Self::Error>;
-    fn put(&self, id: Self::ID, item: &impl StoreableItem<'b>) -> Result<Option<u32>, Self::Error>;
-    fn delete(&self, id: Self::ID) -> Result<Option<impl StoreableItem<'b>>, Self::Error>;
+    fn list_iter(
+        &self,
+        prefix: Option<Self::ID>,
+    ) -> Result<Box<dyn Iterator<Item = Self::ID>>, Self::Error>;
+
+    fn new_transaction(&self) -> Result<Self::Transaction, Self::Error>;
 }
