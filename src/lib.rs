@@ -1,5 +1,8 @@
-use std::future::Future;
 
+
+use futures::future::BoxFuture;
+
+pub mod backends;
 pub trait StorageBackend<'b, B, K> {
     type Error;
     type Transaction: StorageTransaction<'b, B, K>;
@@ -27,18 +30,14 @@ pub trait StorageBackend<'b, B, K> {
 pub trait StorageShard<'b, B, K> {
     type Error;
 
-    fn list(&self) -> Result<impl Iterator<Item = K>, Self::Error>;
-    fn filter_list<F>(&self, f: F) -> Result<impl Iterator<Item = K>, Self::Error>
+    fn list(&self) -> Result<Box<dyn Iterator<Item = K>>, Self::Error>;
+    fn filter_list<F>(&self, f: F) -> Result<Box<dyn Iterator<Item = K>>, Self::Error>
     where
-        F: FnMut(K) -> Result<K, Self::Error>;
+        F: FnMut(&K) -> Option<&K>;
 
-    fn get_one(&self, key: K) -> Result<B, Self::Error>;
-    fn get_many(&self, keys: Vec<K>) -> Vec<Result<B, Self::Error>>;
-
+    fn get(&self, key: K) -> Result<B, Self::Error>;
     fn put(&self, key: K, value: B) -> Result<Option<B>, Self::Error>;
-
-    fn delete_one(&self, key: K) -> Result<Option<B>, Self::Error>;
-    fn delete_many(&self, keys: Vec<K>) -> Vec<(K, Result<Option<B>, Self::Error>)>;
+    fn delete(&self, key: K) -> Result<Option<B>, Self::Error>;
 
     fn compare_swap(
         &self,
@@ -46,41 +45,27 @@ pub trait StorageShard<'b, B, K> {
         old: Option<B>,
         new: Option<B>,
     ) -> Result<Option<B>, Self::Error>;
-    
+
     fn update_fetch<F>(&self, key: K, f: F) -> Result<Option<B>, Self::Error>
     where
-        F: FnMut(Option<B>) -> Option<B>;
+        F: FnMut(&mut B);
 }
 
 pub trait StorageTransaction<'b, B, K> {
     type Error;
 
-    fn get_one(&self, key: K) -> Box<dyn Future<Output = Result<B, Self::Error>>>;
-    fn get_many(
-        &self,
-        keys: Vec<K>,
-    ) -> Box<dyn Future<Output = Vec<(u64, Result<B, Self::Error>)>>>;
-
-    fn put(&self, key: K, value: B) -> Box<dyn Future<Output = Result<Option<B>, Self::Error>>>;
-
-    fn delete_one(&self, key: K) -> Box<dyn Future<Output = Result<Option<B>, Self::Error>>>;
-    fn delete_many(
-        &self,
-        keys: Vec<K>,
-    ) -> Box<dyn Future<Output = Vec<Result<(K, Option<B>), Self::Error>>>>;
+    fn get(&self, key: K) -> BoxFuture<Result<B, Self::Error>>;
+    fn put(&self, key: K, value: B) -> BoxFuture<Result<Option<B>, Self::Error>>;
+    fn delete(&self, key: K) -> BoxFuture<Result<Option<B>, Self::Error>>;
 
     fn compare_swap(
         &self,
         key: K,
         old: Option<B>,
         new: Option<B>,
-    ) -> Box<dyn Future<Output = Result<Option<B>, Self::Error>>>;
+    ) -> BoxFuture<Result<Option<B>, Self::Error>>;
 
-    fn update_fetch<F>(
-        &self,
-        key: K,
-        f: F,
-    ) -> Box<dyn Future<Output = Result<Option<B>, Self::Error>>>
+    fn update_fetch<F>(&self, key: K, f: F) -> BoxFuture<Result<Option<B>, Self::Error>>
     where
-        F: FnMut(Option<B>) -> Option<B>;
+        F: FnMut(&mut B);
 }
