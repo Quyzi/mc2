@@ -1,11 +1,14 @@
-
-
 use futures::future::BoxFuture;
+use serde::Serialize;
 
 pub mod backends;
+
+#[cfg(test)]
+pub mod tests;
+
 pub trait StorageBackend<'b, B, K> {
     type Error;
-    type Transaction: StorageTransaction<'b, B, K>;
+    // type Transaction: StorageTransaction<'b, B, K>;
     type Shard: StorageShard<'b, B, K>;
 
     fn open(path: &'b str) -> Result<Self, Self::Error>
@@ -22,13 +25,18 @@ pub trait StorageBackend<'b, B, K> {
     where
         Self::Shard: Sized + Clone;
 
-    fn start_transaction(&self, id: &str, shard: &str) -> Result<Self::Transaction, Self::Error>
-    where
-        Self::Transaction: Sized + Clone;
+    // fn start_transaction(&self, id: &str, shard: &str) -> Result<Self::Transaction, Self::Error>
+    // where
+    //     Self::Transaction: Sized;
 }
 
 pub trait StorageShard<'b, B, K> {
     type Error;
+
+    fn compute_key(&self, value: &B) -> Result<K, Self::Error>;
+    fn prepare_value<T>(&self, value: &T) -> Result<B, Self::Error>
+    where 
+        T: Serialize;
 
     fn list(&self) -> Result<Box<dyn Iterator<Item = K>>, Self::Error>;
     fn filter_list<F>(&self, f: F) -> Result<Box<dyn Iterator<Item = K>>, Self::Error>

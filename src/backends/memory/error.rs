@@ -25,8 +25,8 @@ impl Display for MemoryError {
     }
 }
 
-impl From<Box<dyn std::error::Error>> for MemoryError {
-    fn from(value: Box<dyn std::error::Error>) -> Self {
+impl From<Box<bincode::ErrorKind>> for MemoryError {
+    fn from(value: Box<bincode::ErrorKind>) -> Self {
         Self {
             source: "std::error::Error".to_string(),
             backtrace: Box::new(Backtrace::capture().to_string()),

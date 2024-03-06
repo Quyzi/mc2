@@ -1,17 +1,22 @@
+use std::cell::RefCell;
+
 use self::{
-    backend::{MemoryObjectID, MemoryObjectValue},
-    shard::MemoryShard,
+    backend::{MemoryObjectID, MemoryObjectValue}, error::MemoryError, shard::MemoryShard
 };
 use super::*;
 use crate::{StorageShard, StorageTransaction};
-
 use futures::{future::ready, prelude::future::BoxFuture};
 
-#[derive(Clone)]
+pub enum TransactionAction {
+    Get(Box<dyn Fn(MemoryObjectID, MemoryObjectValue) -> Result<MemoryObjectValue, MemoryError>>),
+}
+
+
 pub struct MemoryTransaction {
     pub(super) shard: MemoryShard,
     #[allow(dead_code)]
     pub(super) id: String,
+    pub(super) actions: RefCell<Vec<TransactionAction>>,
 }
 
 impl<'b> StorageTransaction<'b, MemoryObjectValue, MemoryObjectID> for MemoryTransaction {

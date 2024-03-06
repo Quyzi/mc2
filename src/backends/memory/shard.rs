@@ -1,3 +1,6 @@
+use bytes::{BufMut, BytesMut};
+use serde::Serialize;
+
 use self::{
     backend::{MemoryObjectID, MemoryObjectValue},
     error::MemoryError,
@@ -6,7 +9,7 @@ use super::*;
 use crate::StorageShard;
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::HashMap, hash::{DefaultHasher, Hash, Hasher}, io::Write,
 };
 
 #[derive(Clone)]
@@ -146,4 +149,16 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
         let mut objects = self.objects.try_borrow_mut()?;
         Ok(objects.remove(&key))
     }
+    
+    fn compute_key(&self, value: &MemoryObjectValue) -> Result<MemoryObjectID, Self::Error> {
+        let mut hasher = DefaultHasher::new();
+        value.hash(&mut hasher);
+        Ok(hasher.finish().into())
+    }
+    
+    fn prepare_value<T>(&self, value: &T) -> Result<MemoryObjectValue, Self::Error>
+        where T: Serialize {
+        Ok(bincode::serialize(value)?.into())
+    }
+    
 }
