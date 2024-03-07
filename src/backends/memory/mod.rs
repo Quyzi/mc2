@@ -3,4 +3,4 @@ pub mod error;
 pub mod shard;
 pub mod transaction;
 
- type Error = error::MemoryError;
+type Error = error::MemoryError;

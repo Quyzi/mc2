@@ -8,7 +8,7 @@ pub mod tests;
 
 pub trait StorageBackend<'b, B, K> {
     type Error;
-    // type Transaction: StorageTransaction<'b, B, K>;
+    type Transaction: StorageTransaction<'b, B, K>;
     type Shard: StorageShard<'b, B, K>;
 
     fn open(path: &'b str) -> Result<Self, Self::Error>
@@ -25,9 +25,9 @@ pub trait StorageBackend<'b, B, K> {
     where
         Self::Shard: Sized + Clone;
 
-    // fn start_transaction(&self, id: &str, shard: &str) -> Result<Self::Transaction, Self::Error>
-    // where
-    //     Self::Transaction: Sized;
+    fn start_transaction(&self, id: &str, shard: &str) -> Result<Self::Transaction, Self::Error>
+    where
+        Self::Transaction: Sized;
 }
 
 pub trait StorageShard<'b, B, K> {
@@ -35,7 +35,7 @@ pub trait StorageShard<'b, B, K> {
 
     fn compute_key(&self, value: &B) -> Result<K, Self::Error>;
     fn prepare_value<T>(&self, value: &T) -> Result<B, Self::Error>
-    where 
+    where
         T: Serialize;
 
     fn list(&self) -> Result<Box<dyn Iterator<Item = K>>, Self::Error>;
@@ -59,6 +59,19 @@ pub trait StorageShard<'b, B, K> {
         F: FnMut(&mut B);
 }
 
+/// WIP
+pub trait TransactionFuture {
+    type Output;
+    fn poll(&mut self, wake: fn()) -> Poll<Self::Output>;
+}
+
+/// WIP
+pub enum Poll<T> {
+    Ready(T),
+    Pending,
+}
+
+/// WIP
 pub trait StorageTransaction<'b, B, K> {
     type Error;
 
@@ -76,4 +89,6 @@ pub trait StorageTransaction<'b, B, K> {
     fn update_fetch<F>(&self, key: K, f: F) -> BoxFuture<Result<Option<B>, Self::Error>>
     where
         F: FnMut(&mut B);
+
+    fn execute(&self) -> Result<(), Self::Error>;
 }

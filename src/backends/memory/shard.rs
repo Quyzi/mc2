@@ -1,4 +1,4 @@
-use bytes::{BufMut, BytesMut};
+
 use serde::Serialize;
 
 use self::{
@@ -9,7 +9,8 @@ use super::*;
 use crate::StorageShard;
 use std::{
     cell::RefCell,
-    collections::HashMap, hash::{DefaultHasher, Hash, Hasher}, io::Write,
+    collections::HashMap,
+    hash::{DefaultHasher, Hash, Hasher},
 };
 
 #[derive(Clone)]
@@ -67,12 +68,10 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
             }
 
             // Anything else is an invalid state
-            _ => {
-                Err(MemoryError::new(
-                    "memoryshard/compare_swap",
-                    "invalid compare_swap parameters",
-                ))
-            }
+            _ => Err(MemoryError::new(
+                "memoryshard/compare_swap",
+                "invalid compare_swap parameters",
+            )),
         }
     }
 
@@ -97,7 +96,8 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
         let objects = self.objects.try_borrow()?;
         Ok(Box::new(
             objects
-                .keys().copied()
+                .keys()
+                .copied()
                 .collect::<Vec<MemoryObjectID>>()
                 .into_iter(),
         ))
@@ -111,7 +111,8 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
         Ok(Box::new(
             objects
                 .keys()
-                .filter_map(f).copied()
+                .filter_map(f)
+                .copied()
                 .collect::<Vec<MemoryObjectID>>()
                 .into_iter(),
         ))
@@ -149,16 +150,17 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
         let mut objects = self.objects.try_borrow_mut()?;
         Ok(objects.remove(&key))
     }
-    
+
     fn compute_key(&self, value: &MemoryObjectValue) -> Result<MemoryObjectID, Self::Error> {
         let mut hasher = DefaultHasher::new();
         value.hash(&mut hasher);
-        Ok(hasher.finish().into())
+        Ok(hasher.finish())
     }
-    
+
     fn prepare_value<T>(&self, value: &T) -> Result<MemoryObjectValue, Self::Error>
-        where T: Serialize {
+    where
+        T: Serialize,
+    {
         Ok(bincode::serialize(value)?.into())
     }
-    
 }
