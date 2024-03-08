@@ -2,7 +2,7 @@ use crate::StorageBackend;
 use bytes::Bytes;
 use std::{cell::RefCell, collections::HashMap};
 
-use self::{error::MemoryError, shard::MemoryShard, transaction::MemoryTransaction};
+use self::{error::MemoryError, shard::MemoryShard};
 use super::*;
 
 pub(super) type MemoryObjectID = u64;
@@ -19,7 +19,7 @@ impl Drop for MemoryBackend {
 
 impl<'b> StorageBackend<'b, MemoryObjectValue, MemoryObjectID> for MemoryBackend {
     type Error = MemoryError;
-    type Transaction = MemoryTransaction;
+    // type Transaction = MemoryTransaction;
     type Shard = MemoryShard;
 
     fn open(_path: &'b str) -> Result<Self, Self::Error>
@@ -52,13 +52,13 @@ impl<'b> StorageBackend<'b, MemoryObjectValue, MemoryObjectID> for MemoryBackend
         Ok(MemoryShard { objects: shard })
     }
 
-    fn start_transaction(&self, id: &str, _shard: &str) -> Result<Self::Transaction, Self::Error>
-    where
-        Self::Transaction: Sized,
-    {
-        Ok(MemoryTransaction {
-            id: id.to_string(),
-            shard: self.open_shard(id)?,
-        })
-    }
+    // fn start_transaction(&self, id: &str, _shard: &str) -> Result<Self::Transaction, Self::Error>
+    // where
+    //     Self::Transaction: Sized,
+    // {
+    //     Ok(MemoryTransaction {
+    //         id: id.to_string(),
+    //         shard: self.open_shard(id)?,
+    //     })
+    // }
 }

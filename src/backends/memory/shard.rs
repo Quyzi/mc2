@@ -1,5 +1,4 @@
 
-use serde::Serialize;
 
 use self::{
     backend::{MemoryObjectID, MemoryObjectValue},
@@ -129,23 +128,6 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
         }
     }
 
-    fn put(
-        &self,
-        key: MemoryObjectID,
-        value: MemoryObjectValue,
-    ) -> Result<Option<MemoryObjectValue>, Self::Error> {
-        let mut objects = self.objects.try_borrow_mut()?;
-        let mut old_value = None;
-        objects
-            .entry(key)
-            .and_modify(|old| {
-                old_value = Some(old.to_owned());
-                *old = value.to_owned();
-            })
-            .or_insert(value);
-        Ok(old_value)
-    }
-
     fn delete(&self, key: MemoryObjectID) -> Result<Option<MemoryObjectValue>, Self::Error> {
         let mut objects = self.objects.try_borrow_mut()?;
         Ok(objects.remove(&key))
@@ -159,8 +141,37 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
 
     fn prepare_value<T>(&self, value: &T) -> Result<MemoryObjectValue, Self::Error>
     where
-        T: Serialize,
+        MemoryObjectValue: for<'a> TryFrom<&'a T, Error = MemoryError>,
     {
-        Ok(bincode::serialize(value)?.into())
+        MemoryObjectValue::try_from(value)
+    }
+
+    fn put<T>(
+        &self,
+        key: MemoryObjectID,
+        value: T,
+    ) -> Result<
+        Option<MemoryObjectValue>,
+        <Self as StorageShard<'b, MemoryObjectValue, MemoryObjectID>>::Error,
+    >
+    where
+        T: crate::Storeable<'b, MemoryObjectValue>,
+        MemoryObjectValue: for<'a> TryFrom<&'a T>,
+    {
+        let mut objects = self.objects.try_borrow_mut()?;
+        let mut old_value = None;
+        let stored = match value.to_storeable() {
+            Ok(bs) => bs,
+            Err(_) => return Err(MemoryError::new("memoryshard/put", "error storing object")),
+        };
+
+        objects
+            .entry(key)
+            .and_modify(|old| {
+                old_value = Some(old.to_owned());
+                *old = stored.clone();
+            })
+            .or_insert(stored);
+        Ok(old_value)
     }
 }
