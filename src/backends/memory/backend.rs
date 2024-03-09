@@ -49,16 +49,9 @@ impl<'b> StorageBackend<'b, MemoryObjectValue, MemoryObjectID> for MemoryBackend
                 this
             }
         };
-        Ok(MemoryShard { objects: shard })
+        Ok(MemoryShard {
+            backend: self.clone(),
+            objects: shard,
+        })
     }
-
-    // fn start_transaction(&self, id: &str, _shard: &str) -> Result<Self::Transaction, Self::Error>
-    // where
-    //     Self::Transaction: Sized,
-    // {
-    //     Ok(MemoryTransaction {
-    //         id: id.to_string(),
-    //         shard: self.open_shard(id)?,
-    //     })
-    // }
 }

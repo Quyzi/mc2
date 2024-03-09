@@ -1,11 +1,10 @@
-
-
 use self::{
-    backend::{MemoryObjectID, MemoryObjectValue},
+    backend::{MemoryBackend, MemoryObjectID, MemoryObjectValue},
     error::MemoryError,
+    transaction::MemoryTransaction,
 };
 use super::*;
-use crate::StorageShard;
+use crate::{StorageShard, StorageTransaction};
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -14,6 +13,7 @@ use std::{
 
 #[derive(Clone)]
 pub struct MemoryShard {
+    pub(crate) backend: MemoryBackend,
     pub(super) objects: RefCell<HashMap<MemoryObjectID, MemoryObjectValue>>,
 }
 
@@ -33,7 +33,7 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
                 if objects.contains_key(&key) {
                     return Err(MemoryError::new(
                         "memoryshard/compare_swap",
-                        &format!("failed to create new value with key {key}"),
+                        &format!("failed to create new value with key {key}: value already exists"),
                     ));
                 }
                 let original = objects.insert(key, new.unwrap());
@@ -49,7 +49,7 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
                 } else {
                     Err(MemoryError::new(
                         "memoryshard/compare_swap",
-                        &format!("failed to delete value with key {key}, old does not match new"),
+                        &format!("failed to delete value with key {key}: old does not match new"),
                     ))
                 }
             }
@@ -66,11 +66,8 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
                 Ok(original)
             }
 
-            // Anything else is an invalid state
-            _ => Err(MemoryError::new(
-                "memoryshard/compare_swap",
-                "invalid compare_swap parameters",
-            )),
+            // If both old and new are None, delete the value.
+            (&None, &None) => Ok(objects.remove(&key)),
         }
     }
 
@@ -117,14 +114,11 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
         ))
     }
 
-    fn get(&self, key: MemoryObjectID) -> Result<MemoryObjectValue, Self::Error> {
+    fn get(&self, key: MemoryObjectID) -> Result<Option<MemoryObjectValue>, Self::Error> {
         let objects = self.objects.try_borrow()?;
         match objects.get(&key) {
-            Some(this) => Ok(this.to_owned()),
-            None => Err(Self::Error::new(
-                "memoryshard/get",
-                &format!("no object found with id {key}"),
-            )),
+            Some(this) => Ok(Some(this.to_owned())),
+            None => Ok(None),
         }
     }
 
@@ -146,32 +140,37 @@ impl<'b> StorageShard<'b, MemoryObjectValue, MemoryObjectID> for MemoryShard {
         MemoryObjectValue::try_from(value)
     }
 
-    fn put<T>(
+    fn put(
         &self,
         key: MemoryObjectID,
-        value: T,
+        value: MemoryObjectValue,
     ) -> Result<
         Option<MemoryObjectValue>,
         <Self as StorageShard<'b, MemoryObjectValue, MemoryObjectID>>::Error,
-    >
-    where
-        T: crate::Storeable<'b, MemoryObjectValue>,
-        MemoryObjectValue: for<'a> TryFrom<&'a T>,
-    {
+    > {
         let mut objects = self.objects.try_borrow_mut()?;
         let mut old_value = None;
-        let stored = match value.to_storeable() {
-            Ok(bs) => bs,
-            Err(_) => return Err(MemoryError::new("memoryshard/put", "error storing object")),
-        };
 
         objects
             .entry(key)
             .and_modify(|old| {
                 old_value = Some(old.to_owned());
-                *old = stored.clone();
+                *old = value.clone();
             })
-            .or_insert(stored);
+            .or_insert(value);
         Ok(old_value)
+    }
+
+    fn new_transaction(
+        &self,
+    ) -> Result<
+        impl StorageTransaction<'b, bytes::Bytes, u64>,
+        <Self as StorageShard<'b, bytes::Bytes, u64>>::Error,
+    > {
+        Ok(MemoryTransaction {
+            _backend: self.backend.clone(),
+            shard: self.clone(),
+            cache: RefCell::new(HashMap::new()),
+        })
     }
 }

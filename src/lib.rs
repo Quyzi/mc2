@@ -17,10 +17,7 @@ pub trait StorageBackend<'b, B, K> {
         Ok(0)
     }
 
-    fn open_shard(
-        &self,
-        name: &str,
-    ) -> Result<Self::Shard, Self::Error>
+    fn open_shard(&self, name: &str) -> Result<Self::Shard, Self::Error>
     where
         Self::Shard: Sized + Clone;
 }
@@ -38,12 +35,9 @@ pub trait StorageShard<'b, B, K> {
     where
         F: FnMut(&K) -> Option<&K>;
 
-    fn get(&self, key: K) -> Result<B, Self::Error>;
+    fn get(&self, key: K) -> Result<Option<B>, Self::Error>;
     fn delete(&self, key: K) -> Result<Option<B>, Self::Error>;
-    fn put<T>(&self, key: K, value: T) -> Result<Option<B>, Self::Error>
-    where
-        T: Storeable<'b, B>,
-        B: for<'a> TryFrom<&'a T>;
+    fn put(&self, key: K, value: B) -> Result<Option<B>, Self::Error>;
 
     fn compare_swap(
         &self,
@@ -55,18 +49,28 @@ pub trait StorageShard<'b, B, K> {
     fn update_fetch<F>(&self, key: K, f: F) -> Result<Option<B>, Self::Error>
     where
         F: FnMut(&mut B);
+
+    fn new_transaction(&self) -> Result<impl StorageTransaction<'b, B, K>, Self::Error>;
 }
 
-pub trait Storeable<'b, B>: Sized
-where
-    B: for<'a> TryFrom<&'a Self>,
-    Self: for<'a> TryFrom<&'a B>,
-{
+pub trait StorageTransaction<'b, B, K> {
     type Error;
 
-    fn to_storeable(&self) -> Result<B, <Self as Storeable<'b, B>>::Error>;
+    fn get(&self, key: K) -> Result<Option<B>, Self::Error>;
+    fn delete(&self, key: K) -> Result<Option<B>, Self::Error>;
+    fn put(&self, key: K, value: B) -> Result<Option<B>, Self::Error>;
 
-    fn from_storeable(st: B) -> Result<Self, <Self as Storeable<'b, B>>::Error>
+    fn compare_swap(
+        &self,
+        key: K,
+        old: Option<B>,
+        new: Option<B>,
+    ) -> Result<Option<B>, Self::Error>;
+
+    fn update_fetch<F>(&self, key: K, f: F) -> Result<Option<B>, Self::Error>
     where
-        Self: Sized;
+        F: FnMut(&mut B);
+
+    fn commit(&self) -> Result<usize, Self::Error>;
+    fn reset(&self) -> Result<usize, Self::Error>;
 }
